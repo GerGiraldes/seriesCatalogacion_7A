@@ -1,0 +1,9 @@
+{
+  "name": "seriescatalogacion-7a",
+  "version": "1.0.0",
+  "description": "CRUD de series, plataformas y valoraciones - corre en Vercel",
+  "main": "api/index.js",
+  "scripts": { "start": "node local.js" },
+  "dependencies": { "express": "^4.19.2", "pg": "^8.12.0" },
+  "engines": { "node": ">=18" }
+}

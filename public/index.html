@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalogacion de Series 7A</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 950px; margin: 20px auto; padding: 0 12px; background: #f6f7fb; }
+  h1 { color: #1a4d8f; } section { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 1px 3px #0002; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+  th, td { border-bottom: 1px solid #ddd; padding: 6px; text-align: left; vertical-align: top; }
+  th { background: #1a4d8f; color: #fff; }
+  input, select, textarea { padding: 6px; margin: 2px; } button { padding: 6px 10px; cursor: pointer; }
+  #msg { color: #b00; font-weight: bold; } .estrellas { color: #e6a100; }
+</style>
+</head>
+<body>
+<h1>Catalogacion de Series</h1>
+<p id="msg"></p>
+
+<section>
+  <h2>Plataformas</h2>
+  <form id="fPla"><input id="plaNombre" placeholder="Nombre de la plataforma" required>
+    <button id="bPla">Agregar</button> <button type="button" onclick="limpiar('Pla')">Cancelar</button></form>
+  <table><thead><tr><th>ID</th><th>Nombre</th><th></th></tr></thead><tbody id="tPla"></tbody></table>
+</section>
+
+<section>
+  <h2>Series</h2>
+  <form id="fSer"><input id="serNombre" placeholder="Nombre de la serie" required>
+    <select id="serPla" required></select>
+    <button id="bSer">Agregar</button> <button type="button" onclick="limpiar('Ser')">Cancelar</button></form>
+  <table><thead><tr><th>ID</th><th>Serie</th><th>Plataforma</th><th></th></tr></thead><tbody id="tSer"></tbody></table>
+</section>
+
+<section>
+  <h2>Valoraciones</h2>
+  <form id="fVal">
+    <select id="valPla" required></select>
+    <select id="valSer" required></select>
+    <input id="valPuntaje" type="number" min="1" max="10" placeholder="Puntaje 1-10" required>
+    <br><textarea id="valObs" rows="2" cols="60" placeholder="Observacion"></textarea><br>
+    <button id="bVal">Agregar</button> <button type="button" onclick="limpiar('Val')">Cancelar</button></form>
+  <table><thead><tr><th>ID</th><th>Plataforma</th><th>Serie</th><th>Puntaje</th><th>Observacion</th><th></th></tr></thead><tbody id="tVal"></tbody></table>
+</section>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const aviso = t => { $('msg').textContent = t || ''; };
+async function api(url, method = 'GET', body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error); return j;
+}
+let datos = { pla: [], ser: [], val: [] }, edit = { Pla: null, Ser: null, Val: null };
+
+async function cargar() {
+  try {
+    [datos.pla, datos.ser, datos.val] = await Promise.all(['plataformas', 'series', 'valoraciones'].map(x => api('/api/' + x)));
+  } catch (e) { return aviso(e.message); }
+  const opt = datos.pla.map(p => `<option value="${p.pla_id}">${esc(p.pla_nombre)}</option>`).join('');
+  $('serPla').innerHTML = opt; $('valPla').innerHTML = opt; filtrarSeries();
+  $('tPla').innerHTML = datos.pla.map(p => `<tr><td>${p.pla_id}</td><td>${esc(p.pla_nombre)}</td>
+    <td><button onclick="editar('Pla',${p.pla_id})">Editar</button> <button onclick="borrar('plataformas',${p.pla_id})">Borrar</button></td></tr>`).join('');
+  $('tSer').innerHTML = datos.ser.map(s => `<tr><td>${s.ser_id}</td><td>${esc(s.ser_nombre)}</td><td>${esc(s.pla_nombre)}</td>
+    <td><button onclick="editar('Ser',${s.ser_id})">Editar</button> <button onclick="borrar('series',${s.ser_id})">Borrar</button></td></tr>`).join('');
+  $('tVal').innerHTML = datos.val.map(v => `<tr><td>${v.val_id}</td><td>${esc(v.pla_nombre)}</td><td>${esc(v.ser_nombre)}</td>
+    <td><span class="estrellas">${'★'.repeat(Math.round(v.val_puntaje / 2))}</span> ${v.val_puntaje}/10</td><td>${esc(v.val_observacion)}</td>
+    <td><button onclick="editar('Val',${v.val_id})">Editar</button> <button onclick="borrar('valoraciones',${v.val_id})">Borrar</button></td></tr>`).join('');
+}
+// en valoraciones solo se ofrecen las series de la plataforma elegida
+function filtrarSeries() {
+  const pla = Number($('valPla').value);
+  $('valSer').innerHTML = datos.ser.filter(s => s.pla_id === pla).map(s => `<option value="${s.ser_id}">${esc(s.ser_nombre)}</option>`).join('');
+}
+$('valPla').onchange = filtrarSeries;
+
+function editar(t, id) {
+  edit[t] = id; $('b' + t).textContent = 'Guardar';
+  if (t === 'Pla') { const p = datos.pla.find(x => x.pla_id === id); $('plaNombre').value = p.pla_nombre; }
+  if (t === 'Ser') { const s = datos.ser.find(x => x.ser_id === id); $('serNombre').value = s.ser_nombre; $('serPla').value = s.pla_id; }
+  if (t === 'Val') { const v = datos.val.find(x => x.val_id === id); $('valPla').value = v.pla_id; filtrarSeries();
+    $('valSer').value = v.ser_id; $('valPuntaje').value = v.val_puntaje; $('valObs').value = v.val_observacion || ''; }
+}
+function limpiar(t) { edit[t] = null; $('f' + t).reset(); $('b' + t).textContent = 'Agregar'; filtrarSeries(); }
+async function borrar(rec, id) {
+  if (!confirm('Seguro que queres borrar?')) return;
+  try { await api(`/api/${rec}/${id}`, 'DELETE'); aviso(); } catch (e) { aviso(e.message); }
+  cargar();
+}
+async function guardar(t, rec, body) {
+  try { edit[t] ? await api(`/api/${rec}/${edit[t]}`, 'PUT', body) : await api('/api/' + rec, 'POST', body); limpiar(t); aviso(); }
+  catch (e) { aviso(e.message); }
+  cargar();
+}
+$('fPla').onsubmit = e => { e.preventDefault(); guardar('Pla', 'plataformas', { pla_nombre: $('plaNombre').value }); };
+$('fSer').onsubmit = e => { e.preventDefault(); guardar('Ser', 'series', { ser_nombre: $('serNombre').value, pla_id: Number($('serPla').value) }); };
+$('fVal').onsubmit = e => { e.preventDefault(); guardar('Val', 'valoraciones', { pla_id: Number($('valPla').value),
+  ser_id: Number($('valSer').value), val_puntaje: Number($('valPuntaje').value), val_observacion: $('valObs').value }); };
+cargar();
+</script>
+</body>
+</html>
